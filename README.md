@@ -154,8 +154,46 @@ pip install -r requirements.txt
 
 ### Update submodules
 
+Update all submodules to their latest remote commits:
+
 ```bash
+# Update all submodules to latest remote
 git submodule update --remote
+
+# Or, more explicitly with recursive init
+git submodule update --remote --recursive
+```
+
+Update specific submodules:
+
+```bash
+# Update a specific parser
+git submodule update --remote parsers/time
+git submodule update --remote parsers/hn
+git submodule update --remote parsers/training
+git submodule update --remote parsers/next
+
+# Update a specific importer
+git submodule update --remote importers/google-keep
+git submodule update --remote importers/apple-notes
+```
+
+Initialize and update all submodules (after cloning without `--recurse-submodules`):
+
+```bash
+git submodule update --init --recursive
+```
+
+Check submodule status:
+
+```bash
+git submodule status
+```
+
+Pull latest changes from all submodules:
+
+```bash
+git pull --recurse-submodules
 ```
 
 ## Running
