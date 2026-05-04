@@ -9,45 +9,132 @@ This repository coordinates:
 
 ## Architecture
 
+### NATS Message Flow Diagram
+
+```mermaid
+graph LR
+    subgraph Stage1["📤 Stage 1: Publishers"]
+        GK["Google Keep<br/>keep-it-markdown"]
+        AN["Apple Notes<br/>notes-exporter"]
+    end
+
+    subgraph NATSTopics1["📨 NATS Stage 1 Topics"]
+        T1A["messages.10.raw<br/>.type.googlenotes"]
+        T1B["messages.10.raw<br/>.type.applenotes"]
+    end
+
+    subgraph Stage2["🔀 Stage 2: Routers"]
+        RT["Message Router<br/>Type Detection"]
+    end
+
+    subgraph NATSTopics2["📨 NATS Stage 2 Topics"]
+        T2A["messages.20.time"]
+        T2B["messages.20.hn"]
+        T2C["messages.20.training"]
+        T2D["messages.20.next"]
+    end
+
+    subgraph Stage3["🔧 Stage 3: Parsers"]
+        P1["⏱️ Time Parser<br/>notes-parser-time-entry"]
+        P2["📰 HN Parser<br/>google-keep-notes-parser"]
+        P3["🎓 Training Parser<br/>training-parser-antlr4"]
+        P4["➡️ Next Parser<br/>notes-parser-next-entry"]
+    end
+
+    subgraph NATSTopics3["📨 NATS Stage 3 Topics"]
+        T3A["messages.30.type.time<br/>.10.parsed"]
+        T3B["messages.30.type.hn<br/>.10.parsed"]
+        T3C["messages.30.type.training<br/>.10.parsed"]
+        T3D["messages.30.type.next<br/>.10.parsed"]
+    end
+
+    subgraph Stage4["💾 Stage 4: Writers"]
+        W1["Writer: Time"]
+        W2["Writer: HN"]
+        W3["Writer: Training"]
+        W4["Writer: Next"]
+    end
+
+    subgraph Output["📂 Output Storage"]
+        OUT1["/tmp/nats/messages.30<br/>.type.time.10/$ID.json"]
+        OUT2["/tmp/nats/messages.30<br/>.type.hn.10/$ID.json"]
+        OUT3["/tmp/nats/messages.30<br/>.type.training.10/$ID.json"]
+        OUT4["/tmp/nats/messages.30<br/>.type.next.10/$ID.json"]
+    end
+
+    GK --> T1A
+    AN --> T1B
+    T1A --> RT
+    T1B --> RT
+    RT --> T2A
+    RT --> T2B
+    RT --> T2C
+    RT --> T2D
+    T2A --> P1
+    T2B --> P2
+    T2C --> P3
+    T2D --> P4
+    P1 --> T3A
+    P2 --> T3B
+    P3 --> T3C
+    P4 --> T3D
+    T3A --> W1
+    T3B --> W2
+    T3C --> W3
+    T3D --> W4
+    W1 --> OUT1
+    W2 --> OUT2
+    W3 --> OUT3
+    W4 --> OUT4
+
+    style Stage1 fill:#e1f5ff
+    style Stage2 fill:#fff3e0
+    style Stage3 fill:#f3e5f5
+    style Stage4 fill:#e8f5e9
+    style Output fill:#fce4ec
 ```
-Publishers (Google Keep, Apple Notes)
-         ↓
-    [Routers]
-    ├── Detects message type (training, HN, time, next)
-    ├── Routes to appropriate messages.20.* topic
-    └── Publishes standardized message format
-         ↓
-    [Parsers]
-    ├── messages.30.type.training.10.parsed
-    ├── messages.30.type.hn.10.parsed
-    ├── messages.30.type.time.10.parsed
-    └── messages.30.type.next.10.parsed
-         ↓
-    [Writers]
-    └── /tmp/nats/$TOPIC/
-```
+
+### Pipeline Stages
+
+| Stage | Component | Purpose |
+|-------|-----------|---------|
+| **1** | Publishers | Extract notes from Google Keep and Apple Notes |
+| **2** | NATS Topics | Distribute raw notes to router |
+| **3** | Router | Detect message type and route to appropriate topic |
+| **4** | NATS Topics | Topic-specific message queues |
+| **5** | Parsers | Parse and process content for specific types |
+| **6** | NATS Topics | Store parsed results |
+| **7** | Writers | Write parsed data to `/tmp/nats/$TOPIC/` |
+| **8** | Files | JSON files organized by topic and ID |
 
 ## Folder Structure
 
 ```
 notes-router/
-├── nats/                          # NATS configuration and schemas
-│   ├── config.yaml               # NATS configuration
-│   ├── Makefile                  # NATS-related targets
-│   └── schemas/                  # Message schemas
+├── infra/                         # Infrastructure & deployment
+│   └── nats/                      # NATS server management
+│       ├── Makefile              # NATS Docker orchestration (nats-up, nats-down, etc.)
+│       ├── gen-certs.sh          # TLS certificate generation
+│       └── nats-server.conf      # NATS mTLS configuration
 │
-├── parsers/                       # Parser submodules
-│   ├── training/                 # training-parser-antlr4 submodule
-│   ├── hn/                        # google-keep-notes-parser (HN parser) submodule
-│   ├── time/                      # time-entry-notes-parser submodule
-│   └── next/                      # notes-parser-next-entry submodule
+├── importers/                     # Source data importers (git submodules)
+│   ├── google-keep/              # Google Keep exporter (keep-it-markdown)
+│   └── apple-notes/              # Apple Notes exporter (notes-exporter)
+│
+├── parsers/                       # Parser submodules (git submodules)
+│   ├── training/                 # training-parser-antlr4
+│   ├── hn/                        # google-keep-notes-parser (HN parser)
+│   ├── time/                      # notes-parser-time-entry
+│   └── next/                      # notes-parser-next-entry
 │
 ├── routers/                       # Routing logic
 │   ├── __init__.py
-│   ├── google_notes_router.py    # Routes Google Keep notes
-│   └── apple_notes_router.py     # Routes Apple Notes
+│   ├── google_notes_router.py    # Routes Google Keep notes to appropriate type topics
+│   └── apple_notes_router.py     # Routes Apple Notes to appropriate type topics
 │
-└── README.md
+├── Makefile                       # Root orchestration (delegates to infra/nats)
+├── pyproject.toml                 # Python project configuration
+└── README.md                      # This file
 ```
 
 ## Setup
