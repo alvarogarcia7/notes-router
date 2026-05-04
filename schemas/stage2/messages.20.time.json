@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Time Entry Routed Message",
+  "description": "Message routed to time entry parser (messages.20.time topic)",
+  "type": "object",
+  "required": ["id", "title", "content", "source", "type", "timestamp"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for the message"
+    },
+    "title": {
+      "type": "string",
+      "description": "Entry title"
+    },
+    "content": {
+      "type": "string",
+      "description": "Entry content body"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["googlenotes", "applenotes"],
+      "description": "Original source of the message"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["time"],
+      "description": "Detected message type"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of original message"
+    }
+  }
+}

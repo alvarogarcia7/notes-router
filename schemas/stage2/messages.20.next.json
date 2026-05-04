@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Next Entry Routed Message",
+  "description": "Message routed to next entry parser (messages.20.next topic)",
+  "type": "object",
+  "required": ["id", "title", "content", "source", "type", "timestamp"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for the message"
+    },
+    "title": {
+      "type": "string",
+      "description": "Next action or goal title"
+    },
+    "content": {
+      "type": "string",
+      "description": "Next entry details or description"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["googlenotes", "applenotes"],
+      "description": "Original source of the message"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["next"],
+      "description": "Detected message type"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of original message"
+    }
+  }
+}

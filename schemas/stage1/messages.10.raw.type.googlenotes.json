@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Google Keep Raw Message",
+  "description": "Raw message from Google Keep via keep-it-markdown publisher",
+  "type": "object",
+  "required": ["id", "title", "content", "source", "timestamp"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for the message"
+    },
+    "title": {
+      "type": "string",
+      "description": "Note title from Google Keep"
+    },
+    "content": {
+      "type": "string",
+      "description": "Note content body"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["googlenotes"],
+      "description": "Source identifier"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when message was published"
+    },
+    "labels": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Optional Google Keep labels/tags"
+    }
+  }
+}

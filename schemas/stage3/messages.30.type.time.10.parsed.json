@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Time Entry Parsed Result",
+  "description": "Parsed time entry message (messages.30.type.time.10.parsed topic)",
+  "type": "object",
+  "required": ["id", "title", "content", "source", "type", "timestamp"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for the message"
+    },
+    "title": {
+      "type": "string",
+      "description": "Time entry title or meeting name"
+    },
+    "content": {
+      "type": "string",
+      "description": "Parsed time entry content"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["googlenotes", "applenotes"],
+      "description": "Original source"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["time"],
+      "description": "Message type"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Original message timestamp"
+    },
+    "parsed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when message was parsed"
+    },
+    "duration": {
+      "type": "number",
+      "description": "Duration in minutes (if detected)"
+    },
+    "start_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Start time of the time entry (if detected)"
+    }
+  }
+}

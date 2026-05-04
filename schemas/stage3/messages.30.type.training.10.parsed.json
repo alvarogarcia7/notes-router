@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Training Session Parsed Result",
+  "description": "Parsed training session message (messages.30.type.training.10.parsed topic)",
+  "type": "object",
+  "required": ["id", "title", "content", "source", "type", "timestamp"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for the message"
+    },
+    "title": {
+      "type": "string",
+      "description": "Training session or course title"
+    },
+    "content": {
+      "type": "string",
+      "description": "Parsed training content"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["googlenotes", "applenotes"],
+      "description": "Original source"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["training"],
+      "description": "Message type"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Original message timestamp"
+    },
+    "parsed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when message was parsed"
+    },
+    "exercises": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "sets": {"type": "integer"},
+          "reps": {"type": "integer"},
+          "weight": {"type": "string"}
+        }
+      },
+      "description": "Parsed exercises (if training involves exercises)"
+    },
+    "duration": {
+      "type": "number",
+      "description": "Session duration in minutes"
+    }
+  }
+}

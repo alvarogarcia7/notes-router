@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HackerNews Parsed Result",
+  "description": "Parsed HackerNews message (messages.30.type.hn.10.parsed topic)",
+  "type": "object",
+  "required": ["id", "title", "content", "source", "type", "timestamp"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for the message"
+    },
+    "title": {
+      "type": "string",
+      "description": "Article or link title"
+    },
+    "content": {
+      "type": "string",
+      "description": "Parsed link or article content"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["googlenotes", "applenotes"],
+      "description": "Original source"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["hn"],
+      "description": "Message type"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Original message timestamp"
+    },
+    "parsed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when message was parsed"
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Extracted URL (if present)"
+    },
+    "domain": {
+      "type": "string",
+      "description": "Domain extracted from URL"
+    },
+    "tags": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Extracted or inferred tags"
+    }
+  }
+}
