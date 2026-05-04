@@ -92,7 +92,6 @@ graph TD
     style Stage3 fill:#f3e5f5
     style Stage4 fill:#e8f5e9
     style Output fill:#fce4ec
-```
 
 ### Pipeline Stages
 
