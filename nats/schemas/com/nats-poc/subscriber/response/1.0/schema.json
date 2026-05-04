@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "com.nats-poc.subscriber/response/1.0",
+  "title": "Subscriber Response Message",
+  "description": "Schema for response messages from the NATS PoC subscriber",
+  "type": "object",
+  "required": ["id", "producer", "schema", "payload"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique message identifier (UUID from original request)",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$|^msg_.*$"
+    },
+    "producer": {
+      "type": "string",
+      "description": "Producer identifier with version",
+      "pattern": "^com\\.[a-z0-9.-]+/[0-9.]+$"
+    },
+    "schema": {
+      "type": "string",
+      "description": "Schema reference URL",
+      "pattern": "^com\\.[a-z0-9.-]+/[a-z0-9-]+/[0-9.]+$"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Message payload with processing results",
+      "required": ["message", "status", "counter"],
+      "properties": {
+        "message": {
+          "type": "string",
+          "description": "The original message content"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["PROCESSED", "PENDING", "FAILED"],
+          "description": "Processing status of the message"
+        },
+        "counter": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Sequential message counter"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "com.nats-poc.publisher/greeting/1.0",
+  "title": "Publisher Greeting Message",
+  "description": "Schema for greeting messages published by the NATS PoC publisher",
+  "type": "object",
+  "required": ["id", "producer", "schema", "payload"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique message identifier (UUID)",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$|^msg_.*$"
+    },
+    "producer": {
+      "type": "string",
+      "description": "Producer identifier with version",
+      "pattern": "^com\\.[a-z0-9.-]+/[0-9.]+$"
+    },
+    "schema": {
+      "type": "string",
+      "description": "Schema reference URL",
+      "pattern": "^com\\.[a-z0-9.-]+/[a-z0-9-]+/[0-9.]+$"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Message payload container",
+      "required": ["message"],
+      "properties": {
+        "message": {
+          "type": "string",
+          "description": "The greeting message content"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
