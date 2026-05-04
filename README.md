@@ -12,50 +12,50 @@ This repository coordinates:
 ### NATS Message Flow Diagram
 
 ```mermaid
-graph LR
-    subgraph Stage1["📤 Stage 1: Publishers"]
+graph TD
+    subgraph Stage1["📤 Publishers"]
         GK["Google Keep<br/>keep-it-markdown"]
         AN["Apple Notes<br/>notes-exporter"]
     end
 
-    subgraph NATSTopics1["📨 NATS Stage 1 Topics"]
+    subgraph NATSTopics1["📨 Raw Messages Stage"]
         T1A["messages.10.raw<br/>.type.googlenotes"]
         T1B["messages.10.raw<br/>.type.applenotes"]
     end
 
-    subgraph Stage2["🔀 Stage 2: Routers"]
+    subgraph Stage2["🔀 Router"]
         RT["Message Router<br/>Type Detection"]
     end
 
-    subgraph NATSTopics2["📨 NATS Stage 2 Topics"]
+    subgraph NATSTopics2["📨 Type-Routed Messages"]
         T2A["messages.20.time"]
         T2B["messages.20.hn"]
         T2C["messages.20.training"]
         T2D["messages.20.next"]
     end
 
-    subgraph Stage3["🔧 Stage 3: Parsers"]
-        P1["⏱️ Time Parser<br/>notes-parser-time-entry"]
-        P2["📰 HN Parser<br/>google-keep-notes-parser"]
-        P3["🎓 Training Parser<br/>training-parser-antlr4"]
-        P4["➡️ Next Parser<br/>notes-parser-next-entry"]
+    subgraph Stage3["🔧 Parsers"]
+        P1["⏱️ Time<br/>notes-parser-time-entry"]
+        P2["📰 HackerNews<br/>google-keep-notes-parser"]
+        P3["🎓 Training<br/>training-parser-antlr4"]
+        P4["➡️ Next<br/>notes-parser-next-entry"]
     end
 
-    subgraph NATSTopics3["📨 NATS Stage 3 Topics"]
-        T3A["messages.30.type.time<br/>.10.parsed"]
-        T3B["messages.30.type.hn<br/>.10.parsed"]
-        T3C["messages.30.type.training<br/>.10.parsed"]
-        T3D["messages.30.type.next<br/>.10.parsed"]
+    subgraph NATSTopics3["📨 Parsed Results"]
+        T3A["messages.30.type<br/>.time.10.parsed"]
+        T3B["messages.30.type<br/>.hn.10.parsed"]
+        T3C["messages.30.type<br/>.training.10.parsed"]
+        T3D["messages.30.type<br/>.next.10.parsed"]
     end
 
-    subgraph Stage4["💾 Stage 4: Writers"]
-        W1["Writer: Time"]
-        W2["Writer: HN"]
-        W3["Writer: Training"]
-        W4["Writer: Next"]
+    subgraph Stage4["💾 Writers"]
+        W1["Write: Time"]
+        W2["Write: HN"]
+        W3["Write: Training"]
+        W4["Write: Next"]
     end
 
-    subgraph Output["📂 Output Storage"]
+    subgraph Output["📂 Output Files"]
         OUT1["/tmp/nats/messages.30<br/>.type.time.10/$ID.json"]
         OUT2["/tmp/nats/messages.30<br/>.type.hn.10/$ID.json"]
         OUT3["/tmp/nats/messages.30<br/>.type.training.10/$ID.json"]
