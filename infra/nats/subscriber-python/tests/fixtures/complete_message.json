@@ -1,8 +1,0 @@
-{
-  "id": "msg-test-123",
-  "producer": "com.nats-poc.cli/1.0",
-  "schema": "com.nats-poc.cli/test-message/1.0",
-  "payload": {
-    "message": "Complete NATS message"
-  }
-}
