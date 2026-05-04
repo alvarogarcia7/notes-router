@@ -1,500 +1,367 @@
 # Repository Structure & Organization
 
-This document explains how the notes processing pipeline is organized across multiple repositories and what belongs in each one.
+This document explains the organization of the notes processing pipeline across the notes-router repository and its dependencies.
 
-## High-Level Architecture
+## Repository Overview
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ notes-router (TOP-LEVEL ORCHESTRATION)                          │
-│ - Central coordinator and routing logic                         │
-│ - Type detection and message routing                            │
-│ - NATS infrastructure and configuration                         │
-│ - Documentation and guides                                      │
-│ - Makefile and dependency management                            │
-└────────────┬──────────────┬──────────────┬──────────────────────┘
-             │              │              │
-      ┌──────┴──────┐ ┌─────┴─────┐ ┌────┴────────┐
-      │   Publishers│ │ Routers   │ │  Parsers    │
-      └──────┬──────┘ └─────┬─────┘ └────┬────────┘
-             │              │              │
-    ┌────────┴────────┐     │        ┌─────┴──────────┬─────────────┬──────────┐
-    │                 │     │        │                │             │          │
- [Google Keep]   [Apple   │    [google_notes_   [training-  [time-entry  [notes-parser
-  (messages.10   Notes]   │     router.py]     parser-     notes-parser  next-entry]
-  raw.type.*)            │                    antlr4]      time-entry]
-                         │
-                    [Type Detection]
-                         │
-         ┌───────────────┼───────────────┐
-         ↓               ↓               ↓
-    messages.20.* (routed by type)
-         ├── messages.20.hn
-         ├── messages.20.time
-         ├── messages.20.training
-         ├── messages.20.next
-         └── messages.20.other.*
-```
+**notes-router** is the central orchestration repository that coordinates:
+- NATS infrastructure and configuration
+- Message routing and type detection logic
+- All parser submodules (training, HackerNews, time, next)
+- Publisher/importer submodules (Google Keep, Apple Notes)
+- Central documentation and Makefile
 
-## Repository Breakdown
+## Directory Structure
 
-### 1. **notes-router** (Central Orchestration)
-**Repository**: https://github.com/alvarogarcia7/notes-router
-
-**Purpose**: Top-level coordinator and routing orchestration
-
-**What goes here**:
-- ✅ Router implementations (`routers/google_notes_router.py`, `routers/apple_notes_router.py`)
-- ✅ NATS infrastructure (configuration, schemas)
-- ✅ Type detection logic and routing rules
-- ✅ Makefile and build automation
-- ✅ pyproject.toml and uv.lock (dependency management)
-- ✅ Central documentation (architecture, pipeline, system status)
-- ✅ Git submodules for all parsers
-- ✅ Guides for working with the pipeline (UPDATE-PARSERS.md, README_TESTING.md)
-
-**Structure**:
 ```
 notes-router/
-├── routers/
-│   ├── __init__.py
-│   ├── google_notes_router.py     # Subscribes to messages.10.raw.type.googlenotes
-│   └── apple_notes_router.py      # Subscribes to messages.10.raw.type.applenotes
-├── parsers/                        # Git submodules
-│   ├── training/
-│   ├── hn/
+├── infra/                          # Infrastructure & deployment
+│   └── nats/
+│       ├── Makefile               # Docker NATS orchestration
+│       ├── gen-certs.sh           # TLS certificate generation
+│       ├── nats-server.conf       # NATS mTLS configuration
+│       └── .gitignore
+│
+├── importers/                      # Source data importers (git submodules)
+│   ├── google-keep/               # Google Keep exporter (keep-it-markdown)
+│   │   ├── nats_publisher.py      # Publishes to messages.10.raw.type.googlenotes
+│   │   └── ...
+│   └── apple-notes/               # Apple Notes exporter (notes-exporter)
+│       ├── nats_publisher.py      # Publishes to messages.10.raw.type.applenotes
+│       └── ...
+│
+├── parsers/                        # Type-specific parsers (git submodules)
 │   ├── time/
+│   │   └── notes-parser-time-entry/
+│   │       ├── src/nats_time_listener.py
+│   │       ├── nats/nats_writer.py
+│   │       └── ...
+│   ├── hn/
+│   │   └── google-keep-notes-parser/
+│   │       ├── nats_hn_parser.py
+│   │       ├── nats_hn_writer.py
+│   │       └── ...
+│   ├── training/
+│   │   └── training-parser-antlr4/
+│   │       ├── src/training_parser.py
+│   │       ├── nats/nats_writer.py
+│   │       └── ...
 │   └── next/
-├── nats/                           # NATS configuration
-│   ├── config.yaml
-│   ├── schemas/
-│   └── subscriber-python/
-├── README.md                       # Repository overview
-├── NOTES_ROUTING_ARCHITECTURE.md  # Routing design
-├── PIPELINE_README.md             # End-to-end documentation
-├── README_TESTING.md              # Testing guidelines
-├── SYSTEM_STATUS.md               # Implementation tracking
-├── UPDATE-PARSERS.md              # How to add/update parsers
-├── Makefile                       # uv sync, test, clean
-├── pyproject.toml                 # Python dependencies
-└── uv.lock                        # Locked dependencies
+│       └── notes-parser-next-entry/
+│           ├── src/next_entry_parser.py
+│           ├── nats/nats_writer.py
+│           └── ...
+│
+├── routers/                        # Routing & type detection
+│   ├── __init__.py
+│   ├── google_notes_router.py     # Routes Google Keep notes
+│   ├── apple_notes_router.py      # Routes Apple Notes
+│   └── base_router.py             # Common routing logic
+│
+├── Makefile                        # Root orchestration (delegates to infra/)
+├── .gitignore                      # Python build artifacts, egg-info
+├── README.md                       # Repository overview with Mermaid diagram
+├── NOTES_ROUTING_ARCHITECTURE.md  # Architecture design and message flow
+├── REPOSITORY_STRUCTURE.md        # This file
+├── PIPELINE_README.md             # End-to-end pipeline documentation
+├── pyproject.toml                 # Python dependencies (uv)
+├── uv.lock                        # Locked dependency versions
+└── .env.example                   # Environment variables template
 ```
 
-**What does NOT go here**:
-- ❌ Parser implementations (they have their own repos)
-- ❌ Publisher logic (handled by source repos)
-- ❌ Parser-specific documentation (goes in parser repos)
+## Core Components
 
-**How to work with it**:
+### 1. Infrastructure (`infra/nats/`)
+
+**Purpose**: NATS server management and TLS configuration
+
+**Key Files**:
+- `Makefile` — Docker NATS orchestration (`nats-up`, `nats-down`, `nats-status`)
+- `gen-certs.sh` — Automatic TLS certificate generation with ed25519
+- `nats-server.conf` — NATS configuration with mutual TLS (mTLS) enforcement
+
+**Usage**:
+```bash
+make nats-up      # Start NATS server in Docker
+make nats-down    # Stop NATS server
+make gen-certs    # Generate TLS certificates (auto-run on nats-up)
+```
+
+### 2. Importers (`importers/`)
+
+**Purpose**: Extract notes from various sources and publish to raw message topics
+
+**Submodules**:
+- `google-keep/` (keep-it-markdown)
+  - Extracts Google Keep notes
+  - Publishes to `messages.10.raw.type.googlenotes`
+  
+- `apple-notes/` (notes-exporter)
+  - Exports Apple Notes
+  - Publishes to `messages.10.raw.type.applenotes`
+
+**Design**: Publishers are in their source repositories. notes-router imports them as submodules for unified orchestration.
+
+### 3. Routers (`routers/`)
+
+**Purpose**: Detect message type and route to type-specific topics
+
+**Components**:
+- `google_notes_router.py`
+  - Subscribes to `messages.10.raw.type.googlenotes`
+  - Detects content type (time, HN, training, next, other)
+  - Routes to `messages.20.*` topics
+
+- `apple_notes_router.py`
+  - Subscribes to `messages.10.raw.type.applenotes`
+  - Detects content type
+  - Routes to `messages.20.*` topics
+
+**Type Detection**: Uses `can_parse()` method from parser modules to identify content type.
+
+### 4. Parsers (`parsers/`)
+
+**Purpose**: Type-specific parsing and result persistence
+
+**Submodules**:
+
+#### Time Parser (`parsers/time/`)
+- Repository: `notes-parser-time-entry`
+- Input: `messages.20.time`
+- Output: `messages.30.type.time.10.parsed`
+- Components:
+  - `src/nats_time_listener.py` — Parser listener
+  - `nats/nats_writer.py` — File writer
+
+#### HackerNews Parser (`parsers/hn/`)
+- Repository: `google-keep-notes-parser`
+- Input: `messages.20.hn`
+- Output: `messages.30.type.hn.10.parsed`
+- Components:
+  - `nats_hn_parser.py` — Parser
+  - `nats_hn_writer.py` — File writer
+
+#### Training Parser (`parsers/training/`)
+- Repository: `training-parser-antlr4`
+- Input: `messages.20.training`
+- Output: `messages.30.type.training.10.parsed`
+- Components:
+  - `src/training_parser.py` — ANTLR4-based parser
+  - `nats/nats_writer.py` — File writer
+
+#### Next Parser (`parsers/next/`)
+- Repository: `notes-parser-next-entry`
+- Input: `messages.20.next`
+- Output: `messages.30.type.next.10.parsed`
+- Components:
+  - `src/next_entry_parser.py` — Parser
+  - `nats/nats_writer.py` — File writer
+
+## Message Flow
+
+### Stage 1: Publishers (Extract)
+```
+Google Keep Notes  →  messages.10.raw.type.googlenotes
+Apple Notes        →  messages.10.raw.type.applenotes
+```
+
+### Stage 2: Routers (Type Detection)
+```
+messages.10.raw.type.*  →  Router  →  Detects Type  →  messages.20.*
+                                     ├── time
+                                     ├── hn
+                                     ├── training
+                                     ├── next
+                                     └── other
+```
+
+### Stage 3: Parsers (Type-Specific Processing)
+```
+messages.20.time       →  Time Parser       →  messages.30.type.time.10.parsed
+messages.20.hn         →  HN Parser         →  messages.30.type.hn.10.parsed
+messages.20.training   →  Training Parser   →  messages.30.type.training.10.parsed
+messages.20.next       →  Next Parser       →  messages.30.type.next.10.parsed
+```
+
+### Stage 4: Writers (Persist)
+```
+messages.30.type.*.10.parsed  →  Writer  →  /tmp/nats/$TOPIC/$ID.json
+```
+
+## Git Submodule Organization
+
+### Parser Submodules
+Each parser is a separate repository imported as a submodule:
+
+```bash
+# Time parser
+git submodule add https://github.com/alvarogarcia7/notes-parser-time-entry.git \
+                   parsers/time/notes-parser-time-entry
+
+# HackerNews parser
+git submodule add https://github.com/alvarogarcia7/google-keep-notes-parser.git \
+                   parsers/hn/google-keep-notes-parser
+
+# Training parser
+git submodule add https://github.com/alvarogarcia7/training-parser-antlr4.git \
+                   parsers/training/training-parser-antlr4
+
+# Next parser
+git submodule add https://github.com/alvarogarcia7/notes-parser-next-entry.git \
+                   parsers/next/notes-parser-next-entry
+```
+
+### Importer Submodules
+```bash
+# Google Keep
+git submodule add https://github.com/alvarogarcia7/keep-it-markdown.git \
+                   importers/google-keep
+
+# Apple Notes
+git submodule add https://github.com/alvarogarcia7/notes-exporter.git \
+                   importers/apple-notes
+```
+
+## Makefile Targets
+
+### Root Makefile (`Makefile`)
+```bash
+make help          # Show available targets
+make sync          # Install dependencies using uv
+make test          # Run pytest tests
+make install       # Install dependencies
+make clean         # Clean up Python artifacts
+make nats-up       # Start NATS server (delegates to infra/nats)
+make nats-down     # Stop NATS server
+make nats-status   # Check NATS server status
+make gen-certs     # Generate TLS certificates
+```
+
+### Infrastructure Makefile (`infra/nats/Makefile`)
+```bash
+make up            # Start NATS + generate certs
+make down          # Stop NATS
+make status        # Show NATS status
+make gen-certs     # Generate TLS certificates
+make env-check     # Verify TLS configuration
+make logs          # Show NATS logs
+```
+
+## Running the Pipeline
+
+### 1. Start Infrastructure
 ```bash
 cd notes-router
-uv sync              # Install dependencies
-make help            # See available targets
-make test            # Run tests
-python routers/google_notes_router.py  # Run router
+make nats-up
 ```
 
----
-
-### 2. **google-keep-notes-parser**
-**Repository**: https://github.com/alvarogarcia7/google-keep-notes-parser
-
-**Purpose**: Google Keep publisher + HackerNews parser
-
-**What goes here**:
-- ✅ Google Keep publisher (`nats_publisher.py`)
-  - Reads JSON notes from files
-  - Publishes to `messages.10.raw.type.googlenotes`
-- ✅ HackerNews parser (`parsers/hackernews_parser.py`)
-  - Detects HackerNews items via URL or label
-  - Parses metadata (item ID, URL, etc.)
-- ✅ HackerNews writer (`nats_hn_writer.py`)
-  - Subscribes to `messages.30.type.hn.10.parsed`
-  - Writes to `/tmp/nats/messages.30.type.hn.10.parsed/`
-- ✅ Sample data (`sample/hn/`, `sample/googlenotes/`)
-- ✅ Parser-specific tests and documentation
-
-**Structure**:
-```
-google-keep-notes-parser/
-├── nats_publisher.py              # Google Keep raw publisher
-├── nats_hn_parser.py              # HackerNews parser
-├── nats_hn_writer.py              # HackerNews writer
-├── parsers/
-│   ├── base.py
-│   ├── hackernews_parser.py       # Can detect HN items
-│   └── generic_notes_parser.py
-├── sample/
-│   ├── hn/                        # HN test data
-│   ├── googlenotes/               # Generic Google notes
-│   └── ...
-├── PIPELINE_README.md             # Publisher/parser docs
-└── ...
-```
-
-**What does NOT go here**:
-- ❌ Routing logic (in notes-router)
-- ❌ Type detection for other types (only HN)
-- ❌ Other source publishers (Apple, etc.)
-
-**How to work with it**:
+### 2. Start Routers
 ```bash
-cd google-keep-notes-parser
-export NATS_URL=nats://localhost:4222
-python nats_publisher.py --input-dir sample/hn  # Publish HN samples
-python nats_hn_parser.py                         # Run parser
-python nats_hn_writer.py                         # Run writer
+python3 routers/google_notes_router.py &
+python3 routers/apple_notes_router.py &
 ```
 
----
-
-### 3. **notes-exporter** (Apple Notes Publisher)
-**Repository**: https://github.com/alvarogarcia7/notes-exporter
-
-**Purpose**: Apple Notes exporter and publisher
-
-**What goes here**:
-- ✅ Apple Notes publisher (`nats_publisher.py`)
-  - Exports notes from Apple Notes app
-  - Publishes to `messages.10.raw.type.applenotes`
-- ✅ Apple Notes routing handler (basic routing, no type-specific logic)
-- ✅ Apple-specific metadata handling
-
-**Structure**:
-```
-notes-exporter/
-├── nats_publisher.py              # Apple Notes publisher
-├── nats_router.py                 # Apple Notes router (if separate)
-└── ...
-```
-
-**What does NOT go here**:
-- ❌ Type detection (that's in notes-router)
-- ❌ Routing logic (handled by notes-router's apple_notes_router.py)
-- ❌ Parser implementations
-
-**How to work with it**:
+### 3. Start Parsers (in separate terminals)
 ```bash
-cd notes-exporter
-export NATS_URL=nats://localhost:4222
-python nats_publisher.py          # Export and publish Apple Notes
+cd parsers/time && python3 -m nats.nats_time_listener
+cd parsers/hn && python3 nats_hn_parser.py
+cd parsers/training && python3 -m nats.nats_training_listener
+cd parsers/next && python3 -m nats.nats_next_listener
 ```
 
----
-
-### 4. **training-parser-antlr4** (Training Parser)
-**Repository**: https://github.com/alvarogarcia7/training-parser-antlr4
-
-**Purpose**: Parse workout/training sessions using ANTLR4 grammar
-
-**What goes here**:
-- ✅ Training parser with ANTLR4 grammar (`src/training_parser.py`)
-  - Detects training notes via format/exercises
-  - Parses workout sessions and exercises
-- ✅ Training parser writer (`nats_writer.py`)
-  - Subscribes to `messages.30.type.training.10.parsed`
-  - Writes to `/tmp/nats/messages.30.type.training.10.parsed/`
-- ✅ ANTLR4 grammar files
-- ✅ Sample workout data (`sample/training/`)
-- ✅ Training-specific tests
-
-**Structure**:
-```
-training-parser-antlr4/
-├── src/
-│   ├── training_parser.py         # Parser with can_parse()
-│   ├── grammar/                   # ANTLR4 grammar
-│   ├── data_access.py
-│   └── ...
-├── nats_training_listener.py      # NATS listener
-├── nats_writer.py                 # Training writer
-├── sample/training/               # Sample data
-├── tests/
-└── ...
-```
-
-**What does NOT go here**:
-- ❌ Routing logic (in notes-router)
-- ❌ Publisher (Google Keep/Apple Notes handle that)
-- ❌ Type detection for other types
-
-**How to work with it**:
+### 4. Start Writers
 ```bash
-cd training-parser-antlr4
-export NATS_URL=nats://localhost:4222
-python nats_training_listener.py  # Run parser
-python nats_writer.py             # Run writer
+cd parsers/time && python3 nats/nats_writer.py &
+cd parsers/hn && python3 nats_hn_writer.py &
+cd parsers/training && python3 nats/nats_writer.py &
+cd parsers/next && python3 nats/nats_writer.py &
 ```
 
----
-
-### 5. **time-entry-notes-parser** (Time Entry Parser)
-**Repository**: https://github.com/alvarogarcia7/notes-parser-time-entry
-
-**Purpose**: Parse time entries from notes
-
-**What goes here**:
-- ✅ Time entry parser (`src/time_entry_parser.py`)
-  - Detects time entries via format
-  - Parses time entries with dates
-- ✅ Time entry listener (`nats/nats_time_listener.py`)
-  - Subscribes to `messages.20.time`
-  - Publishes to `messages.30.type.time.10.parsed`
-- ✅ Time entry writer (`nats/nats_writer.py`)
-  - Subscribes to `messages.30.type.time.10.parsed`
-  - Writes to `/tmp/nats/messages.30.type.time.10.parsed/`
-- ✅ Time-specific tests and documentation
-
-**Structure**:
-```
-time-entry-notes-parser/
-├── src/
-│   └── time_entry_parser.py       # Parser with can_parse()
-├── nats/
-│   ├── nats_time_listener.py      # NATS listener
-│   ├── nats_writer.py             # Time writer
-│   └── __init__.py
-├── PIPELINE_README.md             # Time-entry specific docs
-└── ...
-```
-
-**What does NOT go here**:
-- ❌ Routing logic (in notes-router)
-- ❌ Publisher (Google Keep/Apple Notes)
-- ❌ Type detection for other types
-
-**How to work with it**:
+### 5. Publish Notes
 ```bash
-cd time-entry-notes-parser
-export NATS_URL=nats://localhost:4222
-python nats/nats_time_listener.py  # Run parser
-python nats/nats_writer.py         # Run writer
+cd importers/google-keep && python3 nats_publisher.py --input-dir ./sample
+cd importers/apple-notes && python3 nats_publisher.py
 ```
 
----
+## Architecture Principles
 
-### 6. **notes-parser-next-entry** (Next Entry Parser)
-**Repository**: https://github.com/alvarogarcia7/notes-parser-next-entry
+1. **Separation of Concerns**
+   - Parsers focus on type-specific logic
+   - Routers focus on type detection and routing
+   - Infrastructure (infra/) is isolated from application logic
 
-**Purpose**: Parse next/todo entries from notes
+2. **Modularity**
+   - Each parser is independent and testable
+   - New parser types can be added without modifying routers
+   - Publishers remain in source repositories
 
-**What goes here**:
-- ✅ Next entry parser (`src/next_entry_parser.py`)
-  - Detects next/todo entries via format
-  - Parses next action items
-- ✅ Next entry listener (`nats/nats_next_listener.py`)
-  - Subscribes to `messages.20.next`
-  - Publishes to `messages.30.type.next.10.parsed`
-- ✅ Next entry writer (`nats/nats_writer.py`)
-  - Subscribes to `messages.30.type.next.10.parsed`
-  - Writes to `/tmp/nats/messages.30.type.next.10.parsed/`
-- ✅ Next-specific tests and documentation
+3. **Observability**
+   - Raw messages preserved in Stage 1 (messages.10.raw.*)
+   - Type-routed messages in Stage 2 (messages.20.*)
+   - Parsed results in Stage 3 (messages.30.type.*.*)
+   - Clear topic naming for easy debugging
 
-**Structure**:
-```
-notes-parser-next-entry/
-├── src/
-│   └── next_entry_parser.py       # Parser with can_parse()
-├── nats/
-│   ├── nats_next_listener.py      # NATS listener
-│   ├── nats_writer.py             # Next writer
-│   └── __init__.py
-├── PIPELINE_README.md             # Next-entry specific docs
-└── ...
-```
-
-**What does NOT go here**:
-- ❌ Routing logic (in notes-router)
-- ❌ Publisher (Google Keep/Apple Notes)
-- ❌ Type detection for other types
-
-**How to work with it**:
-```bash
-cd notes-parser-next-entry
-export NATS_URL=nats://localhost:4222
-python nats/nats_next_listener.py  # Run parser
-python nats/nats_writer.py         # Run writer
-```
-
----
-
-### 7. **link-collection-rust** (StrictDoc Requirements)
-**Repository**: https://github.com/alvarogarcia7/link-collection-rust
-
-**Purpose**: Requirements specification and documentation
-
-**What goes here**:
-- ✅ StrictDoc requirements (`requirements.sdoc`)
-  - System requirements (SYSREQ)
-  - High-level requirements (HLR)
-  - Low-level requirements (LLR)
-- ✅ Requirement hierarchy and traceability
-- ✅ Makefile goals for StrictDoc validation
-- ✅ GitHub Actions CI/CD pipeline configuration
-- ✅ Documentation about requirements process
-
-**What does NOT go here**:
-- ❌ Implementation code (in respective parser repos)
-- ❌ Routing logic (in notes-router)
-- ❌ NATS configuration (in notes-router)
-
-**How to work with it**:
-```bash
-cd link-collection-rust
-make strictdoc-validate   # Validate requirements format
-make strictdoc-build      # Build HTML documentation
-make strictdoc-view       # Open docs in browser
-```
-
----
-
-## Message Flow Across Repositories
-
-```
-1. PUBLISHER STAGE (Source Repositories)
-   ┌──────────────────────┬──────────────────┐
-   │                      │                  │
-   v                      v                  v
-   google-keep-notes     notes-exporter     (other sources)
-   nats_publisher.py     nats_publisher.py
-   
-   ↓ Publishes to ↓
-   messages.10.raw.type.googlenotes (Google Keep)
-   messages.10.raw.type.applenotes   (Apple Notes)
-   
-2. ROUTER STAGE (notes-router)
-   ┌────────────────────────────────────────┐
-   │ google_notes_router.py                 │
-   │ apple_notes_router.py                  │
-   │ - Detect type (HN, Time, Training, Next)
-   │ - Route to messages.20.*               │
-   └────────────────────────────────────────┘
-   
-   ↓ Routes to ↓
-   messages.20.hn         (HackerNews)
-   messages.20.time       (Time Entries)
-   messages.20.training   (Training/Workouts)
-   messages.20.next       (Next Items)
-   messages.20.other.*    (Generic content)
-   
-3. PARSER STAGE (Type-Specific Repositories)
-   ┌──────────────┬──────────────┬──────────────┬──────────────┐
-   │              │              │              │              │
-   v              v              v              v              v
-   google-keep    time-entry     training      notes-parser   (others)
-   nats_hn_       nats_time_     nats_training  nats_next_
-   parser.py      listener.py    listener.py    listener.py
-   
-   ↓ Publishes to ↓
-   messages.30.type.hn.10.parsed
-   messages.30.type.time.10.parsed
-   messages.30.type.training.10.parsed
-   messages.30.type.next.10.parsed
-   
-4. WRITER STAGE (Type-Specific Repositories)
-   ┌──────────────┬──────────────┬──────────────┬──────────────┐
-   │              │              │              │              │
-   v              v              v              v              v
-   google-keep    time-entry     training      notes-parser   (others)
-   nats_hn_       nats_writer.py nats_writer.py nats_writer.py
-   writer.py
-   
-   ↓ Writes to ↓
-   /tmp/nats/messages.30.type.hn.10.parsed/
-   /tmp/nats/messages.30.type.time.10.parsed/
-   /tmp/nats/messages.30.type.training.10.parsed/
-   /tmp/nats/messages.30.type.next.10.parsed/
-```
-
-## When to Create a New Repository
-
-Create a new repository when:
-
-✅ **DO CREATE NEW REPO** for:
-- New **parser type** (detect, parse, write a new content type)
-- New **publisher** (new note source)
-- New **framework/infrastructure** (like link-collection-rust for requirements)
-
-❌ **DON'T CREATE NEW REPO** for:
-- Router logic (goes in notes-router)
-- Type detection helper functions (goes in notes-router)
-- NATS configuration (goes in notes-router)
-- General documentation (goes in notes-router)
-- Central guides/processes (goes in notes-router)
+4. **Extensibility**
+   - New parser types: create new submodule in `parsers/[type]/`
+   - New sources: add to `importers/` as submodule
+   - No changes needed to routers when adding parsers (via can_parse())
 
 ## Adding a New Parser Type
 
-To add a new parser type (e.g., "podcast" entries):
+To add a parser for a new content type (e.g., "podcast" entries):
 
-1. **Create repository** `notes-parser-podcast`
-   - `src/podcast_parser.py` with `can_parse(note)` method
-   - `nats/nats_podcast_listener.py`
-   - `nats/nats_writer.py`
+1. **Create repository**: `notes-parser-podcast`
+   ```
+   notes-parser-podcast/
+   ├── src/podcast_parser.py (with can_parse() method)
+   ├── nats/nats_podcast_listener.py
+   ├── nats/nats_writer.py
+   └── ...
+   ```
 
-2. **Add to notes-router**
-   - Add submodule: `git submodule add https://github.com/alvarogarcia7/notes-parser-podcast.git parsers/podcast`
-   - Import parser in `routers/google_notes_router.py`
-   - Add to `TYPE_TO_TOPIC` mapping: `"podcast": "messages.20.podcast"`
+2. **Add submodule**: 
+   ```bash
+   git submodule add https://github.com/alvarogarcia7/notes-parser-podcast.git \
+                      parsers/podcast/notes-parser-podcast
+   ```
 
-3. **Update documentation**
-   - Update PIPELINE_README.md in notes-router
-   - Add to architecture diagram
-   - Document the new topic and parser
+3. **Router detects automatically** via can_parse() method
 
-## Dependency Management
+4. **Update documentation**: Add to NOTES_ROUTING_ARCHITECTURE.md
 
-- **notes-router**: Uses `uv` (pyproject.toml + uv.lock)
-- **Each parser**: Uses their preferred package manager
-  - Google Keep: `pip` (requirements.txt) or `uv`
-  - Training: `uv` (pyproject.toml + uv.lock)
-  - Time Entry: `pip` (pyproject.toml + uv.lock)
-  - Next Entry: `uv` (pyproject.toml + uv.lock)
+## Dependencies
 
-## Documentation Organization
+**notes-router**: Uses `uv` for dependency management
+- `pyproject.toml` — Declares dependencies
+- `uv.lock` — Locks exact versions
 
-| Document | Location | Purpose |
-|----------|----------|---------|
-| Architecture overview | notes-router/NOTES_ROUTING_ARCHITECTURE.md | Design and routing logic |
-| Full pipeline guide | notes-router/PIPELINE_README.md | End-to-end documentation |
-| Testing guidelines | notes-router/README_TESTING.md | How to test the system |
-| System status | notes-router/SYSTEM_STATUS.md | Implementation tracking |
-| Parser updates | notes-router/UPDATE-PARSERS.md | How to add/modify parsers |
-| Parser-specific docs | Each parser repo/PIPELINE_README.md | Parser-specific details |
-| Requirements | link-collection-rust/requirements.sdoc | System requirements |
+**Each parser**: Manages own dependencies
+- Most use `uv` with `pyproject.toml`
+- Some may use `pip` with `requirements.txt`
 
-## Quick Reference: Where Things Go
+## Documentation Files
 
-| Item | Location |
-|------|----------|
-| Router implementation | notes-router/routers/ |
-| Type detection | notes-router/routers/ (via parser can_parse) |
-| Parser implementation | [type]-parser-[name]/ |
-| Publisher | Publisher repo (Google Keep, Apple Notes, etc.) |
-| Writer | Parser repo |
-| NATS config | notes-router/nats/ |
-| Type-to-topic mapping | notes-router/routers/ |
-| Parser submodule | notes-router/parsers/[type]/ |
-| Makefile | notes-router/ + each parser repo |
-| Tests | Each repo (unit tests) + notes-router (integration) |
-| Documentation | notes-router/ (central) + each repo (specific) |
-| Requirements spec | link-collection-rust/ |
-
----
+| File | Purpose |
+|------|---------|
+| `README.md` | Repository overview with Mermaid diagram |
+| `NOTES_ROUTING_ARCHITECTURE.md` | Architecture design, stages, and message flow |
+| `REPOSITORY_STRUCTURE.md` | This file — directory structure and organization |
+| `PIPELINE_README.md` | End-to-end pipeline documentation |
+| `Makefile` | Root orchestration targets |
 
 ## Summary
 
-The **notes-router** is the **TOP-LEVEL ORCHESTRATION REPOSITORY** that:
-- Defines routing rules and type detection
-- Hosts NATS infrastructure
-- Coordinates all parsers via git submodules
-- Provides central documentation and guides
-- Manages dependencies and builds
+**notes-router** provides:
+- ✅ Central NATS infrastructure (`infra/nats/`)
+- ✅ Type detection and routing logic (`routers/`)
+- ✅ Git submodules for all parsers and importers
+- ✅ Unified Makefile for orchestration
+- ✅ Central documentation
 
-Each **PARSER REPOSITORY** is independent and:
-- Focuses on one content type
-- Implements detection via `can_parse(note)`
-- Provides listener and writer components
-- Contains type-specific tests and docs
-- Can be developed and tested independently
+**Each parser repository** provides:
+- ✅ Type-specific parsing logic
+- ✅ NATS listener component
+- ✅ File writer component
+- ✅ Type-specific tests and documentation
 
-**Publishers** remain in their source repositories (Google Keep exporter, Apple Notes exporter) and simply publish raw messages to `messages.10.raw.type.*` topics.
+This separation enables independent development while maintaining a coordinated pipeline.

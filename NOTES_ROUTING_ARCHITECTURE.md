@@ -2,160 +2,206 @@
 
 ## Overview
 
-The system now implements a two-stage routing architecture for Google Keep and Apple Notes, separating raw message ingestion from parsing and type-specific routing.
+The notes-router implements a multi-stage NATS-based pipeline that processes notes from various sources (Google Keep, Apple Notes, and others) through type detection, specialized parsing, and persistent storage.
 
-## Message Flow
+## Architecture Stages
 
-### Google Keep Notes
+### Stage 1: Publishers
+Extract notes from various sources and publish to raw message topics.
+
+**Sources:**
+- **Google Keep** → `keep-it-markdown` (importers/google-keep)
+- **Apple Notes** → `notes-exporter` (importers/apple-notes)
+- **Any other source** → Can be added to importers/
+
+**Output Topics:**
+- `messages.10.raw.type.googlenotes`
+- `messages.10.raw.type.applenotes`
+
+### Stage 2: Router
+Detects message type and routes to appropriate type-specific topic.
+
+**Router Components:**
+- `routers/google_notes_router.py` - Processes Google Keep notes
+- `routers/apple_notes_router.py` - Processes Apple Notes
+
+**Type Detection:**
+- Time entries (meeting notes, time tracking)
+- HackerNews items (link collections, tech news)
+- Training sessions (learning resources, workshops)
+- Next entries (upcoming items, goals, TODOs)
+
+**Output Topics:**
+- `messages.20.time`
+- `messages.20.hn`
+- `messages.20.training`
+- `messages.20.next`
+- `messages.20.other.*` (for unmatched content)
+
+### Stage 3: Parsers
+Specialized parsers process each message type.
+
+**Parser Repositories (git submodules):**
+- **Time Parser** → `parsers/time/notes-parser-time-entry`
+- **HackerNews Parser** → `parsers/hn/google-keep-notes-parser`
+- **Training Parser** → `parsers/training/training-parser-antlr4`
+- **Next Parser** → `parsers/next/notes-parser-next-entry`
+
+**Input Topics:**
+- `messages.20.time`
+- `messages.20.hn`
+- `messages.20.training`
+- `messages.20.next`
+
+**Output Topics:**
+- `messages.30.type.time.10.parsed`
+- `messages.30.type.hn.10.parsed`
+- `messages.30.type.training.10.parsed`
+- `messages.30.type.next.10.parsed`
+
+### Stage 4: Writers
+Persist parsed messages to the filesystem.
+
+**Output Location:**
+```
+/tmp/nats/$TOPIC_ID/$MESSAGE_ID.json
+```
+
+Example:
+```
+/tmp/nats/messages.30.type.time.10/uuid-123456.json
+/tmp/nats/messages.30.type.hn.10/uuid-789012.json
+```
+
+## Complete Message Flow
 
 ```
-Google Keep Notes (JSON files)
-         ↓
-google-keep-notes-parser/nats_publisher.py
-         ↓
-messages.10.raw.type.googlenotes (raw notes)
-         ↓
-google-keep-notes-parser/nats_router.py
-         ↓
-messages.20.googlenotes (standardized format)
+Publishers
+│
+├─ Google Keep (keep-it-markdown)
+├─ Apple Notes (notes-exporter)
+└─ Any Other Source
+│
+↓ (NATS Stage 1)
+│
+messages.10.raw.type.{source}
+│
+↓ (Router Type Detection)
+│
+Router
+├─ Detects content type (time, HN, training, next)
+└─ Routes to type-specific topic
+│
+↓ (NATS Stage 2)
+│
+messages.20.{type}
+│
+↓ (Parser)
+│
+├─ Time Parser
+├─ HackerNews Parser
+├─ Training Parser
+└─ Next Parser
+│
+↓ (NATS Stage 3)
+│
+messages.30.type.{type}.10.parsed
+│
+↓ (Writer)
+│
+/tmp/nats/messages.30.type.{type}.10/$ID.json
 ```
 
-### Apple Notes
+## Infrastructure
 
-```
-Apple Notes (exported via notes-exporter)
-         ↓
-notes-exporter/nats_publisher.py
-         ↓
-messages.10.raw.type.applenotes (raw notes)
-         ↓
-notes-exporter/nats_router.py
-         ↓
-messages.20.applenotes (standardized format)
-```
+### NATS Server
+**Location:** `infra/nats/`
 
-### HackerNews (for reference)
+**Features:**
+- Mutual TLS (mTLS) security with certificate verification
+- Automatic certificate generation via `gen-certs.sh`
+- Configuration in `nats-server.conf`
 
-```
-HackerNews RSS/API
-         ↓
-link-collection-rust/nats-listener (Rust binary)
-         ↓
-messages.20.hn (standardized format)
+**Management:**
+```bash
+make nats-up      # Start NATS server
+make nats-down    # Stop NATS server
+make nats-status  # Check NATS status
+make gen-certs    # Generate TLS certificates
 ```
 
-## Message Format - messages.20.* (Standard Output Format)
-
-All messages routed to `messages.20.*` topics follow the same schema:
-
-```json
-{
-  "id": "uuid-unique-identifier",
-  "message_type": "googlenotes|applenotes|hn",
-  "note": {
-    "id": "note-specific-id",
-    "title": "Note Title",
-    "text": "Note content (optional)",
-    "url": "URL if applicable (optional)",
-    "date": "YYYY-MM-DD (optional, extracted or provided)"
-  },
-  "source": "google-keep|apple-notes|hn"
-}
-```
-
-## Components
-
-### 1. Google Keep Notes Publisher
-- **File:** `google-keep-notes-parser/nats_publisher.py`
-- **Input:** JSON files from Google Keep export
-- **Output Topic:** `messages.10.raw.type.googlenotes`
-- **Format:** Raw note data with date extraction
-- **Command:** `python3 nats_publisher.py --input-dir ./sample`
-
-### 2. Google Keep Notes Router
-- **File:** `google-keep-notes-parser/nats_router.py`
-- **Input Topic:** `messages.10.raw.type.googlenotes`
-- **Output Topic:** `messages.20.googlenotes`
-- **Transformation:** Standardizes to messages.20.* format
-- **Command:** `python3 nats_router.py`
-
-### 3. Apple Notes Publisher
-- **File:** `notes-exporter/nats_publisher.py`
-- **Input:** JSON files from notes-exporter export
-- **Output Topic:** `messages.10.raw.type.applenotes`
-- **Format:** Raw note data with date extraction
-- **Command:** `python3 nats_publisher.py --data-dir ./data`
-
-### 4. Apple Notes Router
-- **File:** `notes-exporter/nats_router.py`
-- **Input Topic:** `messages.10.raw.type.applenotes`
-- **Output Topic:** `messages.20.applenotes`
-- **Transformation:** Standardizes to messages.20.* format
-- **Command:** `python3 nats_router.py`
-
-### 5. HackerNews NATS Listener (Rust)
-- **File:** `link-collection-rust/nats-listener/src/main.rs`
-- **Input Topic:** None (subscribes directly to NATS)
-- **Output Topic:** `messages.20.hn`
-- **Format:** Pre-standardized HackerNews messages
-- **Command:** `cargo run -p nats-listener`
-
-## Benefits of This Architecture
-
-1. **Separation of Concerns**
-   - Publishers handle source-specific extraction and formatting
-   - Routers handle transformation to standardized format
-
-2. **Source Identification**
-   - `messages.10.raw.type.*` clearly identifies the source type
-   - `messages.20.*` provides type-specific access to standardized data
-
-3. **Unified Schema**
-   - All messages in `messages.20.*` follow the same format
-   - Enables consistent downstream processing
-
-4. **Scalability**
-   - Easy to add new note sources (e.g., OneNote, Notion)
-   - Router pattern is reusable for any new source
-
-5. **Debugging**
-   - Raw messages preserved in messages.10.raw.type.* for inspection
-   - Transformation errors can be isolated to routers
-
-## Configuration
+### Configuration
 
 All components use:
-- **NATS_URL:** Environment variable (e.g., `tls://localhost:4222`)
-- **CERTS_DIR:** Directory containing TLS certificates (default: `/tmp/nats-certs`)
+- **NATS_URL:** Environment variable (default: `tls://localhost:4222`)
+- **CERTS_DIR:** Directory containing TLS certificates
   - Required files: `client.pem`, `client.key`, `rootCA.pem`
+
+## Benefits
+
+1. **Modular Architecture**
+   - Each parser is independent and self-contained
+   - Easy to add new sources and parser types
+
+2. **Type-Specific Processing**
+   - Each message type handled by specialized parser
+   - Optimized algorithms per content type
+
+3. **Source Agnostic**
+   - Router detects type regardless of source
+   - Same time entry logic for Google Keep or Apple Notes
+
+4. **Persistent Storage**
+   - All parsed messages stored as JSON files
+   - Organized by type for easy querying
+
+5. **Observable Pipeline**
+   - Raw messages preserved in Stage 1 for inspection
+   - Each stage has clear NATS topics for monitoring
 
 ## Running the Pipeline
 
-1. **Start NATS Server** (with TLS)
-   ```bash
-   nats-server -c nats-server.conf
-   ```
+### Start Infrastructure
+```bash
+# From notes-router root
+make nats-up
+```
 
-2. **Start Routers** (in separate terminals)
-   ```bash
-   cd google-keep-notes-parser && python3 nats_router.py
-   cd notes-exporter && python3 nats_router.py
-   ```
+### Start Routers
+```bash
+# From routers/ directory
+python3 google_notes_router.py
+python3 apple_notes_router.py
+```
 
-3. **Publish Notes**
-   ```bash
-   cd google-keep-notes-parser && python3 nats_publisher.py --input-dir ./sample
-   cd notes-exporter && python3 nats_publisher.py --data-dir ./data
-   ```
+### Start Parsers
+```bash
+# From parsers/ subdirectories
+cd parsers/time && make listener-time
+cd parsers/hn && make listener-hn
+cd parsers/training && make listener-training
+cd parsers/next && make listener-next
+```
 
-4. **Monitor Messages** (optional)
-   ```bash
-   nats sub "messages.20.*"
-   ```
+### Publish Notes
+Publish notes from Google Keep or Apple Notes importers to trigger pipeline processing.
+
+### Monitor Messages
+```bash
+# View raw messages
+nats sub "messages.10.raw.*"
+
+# View routed messages by type
+nats sub "messages.20.*"
+
+# View parsed results
+nats sub "messages.30.type.*"
+```
 
 ## Future Enhancements
 
-- Add additional note sources (OneNote, Notion, etc.)
-- Implement message persistence/storage from messages.20.*
-- Add metadata enrichment in routers (e.g., NLP tags, categorization)
-- Create unified message validator for messages.20.*
+- Add additional note sources (OneNote, Notion, Evernote)
+- Implement cross-type message correlation
+- Add metadata enrichment in routers (NLP, categorization)
+- Create message indexing service for parsed results
+- Add real-time dashboard for pipeline monitoring
