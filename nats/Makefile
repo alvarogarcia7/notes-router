@@ -1,131 +1,178 @@
-.PHONY: help
+.PHONY: help up down status nats-up nats-down nats-status gen-certs env-check listener-time listener-training listener-hn listener-next writer-time writer-training writer-hn writer-next publisher notes-exporter-publisher clean logs listeners writers time training hn next install setup update-parsers-check update-parsers-all update-parser-time update-parser-training update-parser-hn update-parser-next update-time update-training update-hn update-next parser-status parser-versions
+
+# Colors for output
+GREEN = \033[0;32m
+BLUE = \033[0;34m
+YELLOW = \033[1;33m
+RED = \033[0;31m
+NC = \033[0m # No Color
+
+# Configuration
+SHELL := /bin/bash
+.SHELLFLAGS := -eu -o pipefail -c
+MAKEFLAGS += --no-builtin-rules
+
+# Load environment from .env if it exists
+ifneq (,$(wildcard .env))
+	include .env
+endif
+
+# Default values (always set and export)
+NATS_URL ?= tls://localhost:4222
+NATS_PORT ?= 4222
+CERTS_DIR ?= $(shell pwd)/certs
+
+# Always export for subprocesses
+export NATS_URL
+export NATS_PORT
+export CERTS_DIR
+
+# Container and process names
+NATS_CONTAINER := nats-server
+PIDS_FILE := ./.make-pids
+
+# Help target
 help:
-	@echo "NATS PoC - Available targets:"
-	@echo "  test              Run all tests (docker, bash and Python)"
-	@echo "  test-docker       Test Docker NATS pub/sub functionality"
-	@echo "  test-bash         Run bash PoC test"
-	@echo "  test-python       Run Python subscriber tests"
-	@echo "  run-bash          Run bash subscriber and publisher manually"
-	@echo "  run-python        Run Python subscriber with bash publisher"
-	@echo "  setup-python      Install Python subscriber dependencies"
-	@echo "  clean             Clean up temporary files and caches"
-	@echo "  lint-python       Run Python linting checks"
-	@echo "  format-python     Format Python code"
-	@echo "  type-check        Run Python type checking"
-	@echo "  help              Show this help message"
-
-.PHONY: test
-test: test-docker test-bash test-python
+	@echo "$(BLUE)╔════════════════════════════════════════════════════════════╗$(NC)"
+	@echo "$(BLUE)║             NATS Pipeline Control Plane (mTLS Enabled)      ║$(NC)"
+	@echo "$(BLUE)╚════════════════════════════════════════════════════════════╝$(NC)"
 	@echo ""
-	@echo "=========================================="
-	@echo "All tests completed successfully!"
-	@echo "=========================================="
-
-.PHONY: test-docker
-test-docker:
-	@echo "=========================================="
-	@echo "Testing Docker NATS Setup"
-	@echo "=========================================="
-	@bash ../test-docker-nats.sh
+	@echo "$(GREEN)Usage:$(NC) make [target]"
 	@echo ""
-
-.PHONY: test-bash
-test-bash:
-	@echo "=========================================="
-	@echo "Running Bash PoC Test"
-	@echo "=========================================="
-	@bash test-poc.sh
+	@echo "$(GREEN)System Control:$(NC)"
+	@echo "  $(YELLOW)up$(NC)              Start entire system (certs + NATS + publishers/listeners)"
+	@echo "  $(YELLOW)down$(NC)            Stop all running components"
+	@echo "  $(YELLOW)status$(NC)          Show status of all components"
+	@echo "  $(YELLOW)logs$(NC)            Show logs from all background processes"
+	@echo "  $(YELLOW)clean$(NC)           Remove all process files and cleanup"
+	@echo ""
+	@echo "$(GREEN)TLS/Security:$(NC)"
+	@echo "  $(YELLOW)gen-certs$(NC)       Generate TLS certificates (auto-run on make up)"
+	@echo "  $(YELLOW)env-check$(NC)       Verify TLS configuration"
+	@echo ""
+	@echo "$(GREEN)NATS Server:$(NC)"
+	@echo "  $(YELLOW)nats-up$(NC)         Start NATS server in Docker"
+	@echo "  $(YELLOW)nats-down$(NC)       Stop NATS server"
+	@echo "  $(YELLOW)nats-status$(NC)     Show NATS server status"
+	@echo ""
+	@echo "$(GREEN)Configuration:$(NC)"
+	@echo "  NATS_URL: $(NATS_URL) (mTLS enabled)"
+	@echo "  NATS_PORT: $(NATS_PORT)"
+	@echo "  CERTS_DIR: $(CERTS_DIR)"
+	@echo "  TLS: ✓ Mutual TLS (mTLS) enabled"
 	@echo ""
 
-.PHONY: test-python
-test-python:
-	@echo "=========================================="
-	@echo "Running Python Subscriber Tests"
-	@echo "=========================================="
-	@cd subscriber-python && python -m pytest tests/ -v 2>/dev/null || \
-	  (cd .. && python test-python-message-handler.py)
+# ============================================================================
+# Certificate Generation
+# ============================================================================
+
+gen-certs:
+	@if [ ! -f "$(CERTS_DIR)/rootCA.pem" ]; then \
+		echo "$(YELLOW)Generating TLS certificates...$(NC)"; \
+		bash $(shell pwd)/gen-certs.sh; \
+	else \
+		echo "$(GREEN)✓$(NC) Certificates already exist"; \
+	fi
+
+# ============================================================================
+# NATS Server Targets
+# ============================================================================
+
+nats-up: gen-certs
+	@echo "$(GREEN)▶$(NC) Starting NATS server..."
+	@if docker ps --format "{{.Names}}" | grep -q "^$(NATS_CONTAINER)$$"; then \
+		echo "$(YELLOW)⚠$(NC) NATS container already running"; \
+	else \
+		docker run -d \
+			--name $(NATS_CONTAINER) \
+			-p $(NATS_PORT):4222 \
+			-v $(CERTS_DIR):/certs:ro \
+			-v $(shell pwd)/nats-server.conf:/etc/nats/nats-server.conf:ro \
+			nats:latest \
+			-c /etc/nats/nats-server.conf \
+		&& echo "$(GREEN)✓$(NC) NATS server started on port $(NATS_PORT)"; \
+	fi
+	@sleep 2
+
+nats-down:
+	@echo "$(GREEN)▶$(NC) Stopping NATS server..."
+	@docker stop $(NATS_CONTAINER) 2>/dev/null || true
+	@docker rm $(NATS_CONTAINER) 2>/dev/null || true
+	@echo "$(GREEN)✓$(NC) NATS server stopped"
+
+nats-status:
+	@if docker ps --format "{{.Names}}" | grep -q "^$(NATS_CONTAINER)$$"; then \
+		echo "$(GREEN)✓$(NC) NATS server is running"; \
+	else \
+		echo "$(RED)✗$(NC) NATS server is not running"; \
+	fi
+
+# ============================================================================
+# System Control Targets
+# ============================================================================
+
+up: nats-up
+	@echo ""
+	@echo "$(GREEN)╔════════════════════════════════════════════════════════════╗$(NC)"
+	@echo "$(GREEN)║                    NATS Started                            ║$(NC)"
+	@echo "$(GREEN)╚════════════════════════════════════════════════════════════╝$(NC)"
+	@echo ""
+	@echo "$(GREEN)Active Components:$(NC)"
+	@echo "  $(GREEN)✓$(NC) NATS server (port $(NATS_PORT))"
 	@echo ""
 
-.PHONY: run-bash
-run-bash:
-	@echo "=========================================="
-	@echo "Running Bash Subscriber and Publisher"
-	@echo "=========================================="
-	@echo "Terminal 1: Starting subscriber..."
-	@echo "Run this in another terminal:"
-	@echo "  bash subscriber/subscriber.sh"
+down: nats-down
 	@echo ""
-	@echo "Terminal 2: Starting publisher..."
-	@echo "Run this in another terminal:"
-	@echo "  bash publisher/publisher.sh"
+	@echo "$(GREEN)╔════════════════════════════════════════════════════════════╗$(NC)"
+	@echo "$(GREEN)║                    NATS Stopped                            ║$(NC)"
+	@echo "$(GREEN)╚════════════════════════════════════════════════════════════╝$(NC)"
 	@echo ""
 
-.PHONY: run-python
-run-python:
-	@echo "=========================================="
-	@echo "Running Python Subscriber with Bash Publisher"
-	@echo "=========================================="
-	@(rm -rf /tmp/nats-poc-messages; mkdir -p /tmp/nats-poc-messages; \
-	  echo "Starting Python subscriber in background..."; \
-	  PYTHONPATH=subscriber-python/src python subscriber-python/src/nats_subscriber/main.py &\
-	  PY_PID=$$!; \
-	  sleep 1; \
-	  echo ""; \
-	  echo "Publishing message..."; \
-	  bash publisher/publisher.sh; \
-	  echo ""; \
-	  echo "Terminating subscriber..."; \
-	  kill $$PY_PID 2>/dev/null || true; \
-	  sleep 1; \
-	  )
+# ============================================================================
+# Status and Monitoring
+# ============================================================================
 
-.PHONY: setup-python
-setup-python:
-	@echo "=========================================="
-	@echo "Setting Up Python Subscriber"
-	@echo "=========================================="
-	@cd subscriber-python && pip install -e ".[dev]" || \
-	  (echo "Note: Running with system Python without installation"; \
-	   echo "Install with: cd subscriber-python && python -m pip install -e '.[dev]'"; \
-	   )
+status:
+	@echo "$(BLUE)════════════════════════════════════════════════════════════$(NC)"
+	@echo "$(BLUE)                   NATS Status                             $(NC)"
+	@echo "$(BLUE)════════════════════════════════════════════════════════════$(NC)"
+	@echo ""
+	@echo "$(BLUE)NATS Server:$(NC)"
+	@$(MAKE) nats-status
+	@echo ""
 
-.PHONY: clean
-clean:
-	@echo "Cleaning up temporary files..."
-	@rm -rf /tmp/nats-poc-messages
-	@find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-	@find . -type f -name "*.pyc" -delete
-	@find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
-	@rm -rf subscriber-python/.pytest_cache subscriber-python/.mypy_cache
-	@rm -rf subscriber-python/.coverage subscriber-python/htmlcov
-	@echo "Cleanup complete!"
+logs:
+	@echo "$(BLUE)════════════════════════════════════════════════════════════$(NC)"
+	@echo "$(BLUE)                   NATS Logs                               $(NC)"
+	@echo "$(BLUE)════════════════════════════════════════════════════════════$(NC)"
+	@echo ""
+	@echo "$(YELLOW)NATS Server:$(NC)"
+	@echo "  docker logs -f $(NATS_CONTAINER)"
+	@echo ""
 
-.PHONY: lint-python
-lint-python:
-	@echo "=========================================="
-	@echo "Running Python Linting"
-	@echo "=========================================="
-	@cd subscriber-python && make lint 2>/dev/null || \
-	  (echo "Note: Linting tools not installed"; \
-	   echo "Install with: cd subscriber-python && pip install -e '.[dev]'"; \
-	   )
+# ============================================================================
+# Cleanup
+# ============================================================================
 
-.PHONY: format-python
-format-python:
-	@echo "=========================================="
-	@echo "Formatting Python Code"
-	@echo "=========================================="
-	@cd subscriber-python && make format 2>/dev/null || \
-	  (echo "Note: Formatting tools not installed"; \
-	   echo "Install with: cd subscriber-python && pip install -e '.[dev]'"; \
-	   )
+clean: down
+	@echo "$(GREEN)▶$(NC) Cleaning up..."
+	@rm -rf $(PIDS_FILE)
+	@echo "$(GREEN)✓$(NC) Cleanup complete"
 
-.PHONY: type-check
-type-check:
-	@echo "=========================================="
-	@echo "Running Python Type Checking"
-	@echo "=========================================="
-	@cd subscriber-python && make type-check 2>/dev/null || \
-	  (echo "Note: mypy not installed"; \
-	   echo "Install with: cd subscriber-python && pip install -e '.[dev]'"; \
-	   )
+# ============================================================================
+# Development Targets
+# ============================================================================
+
+env-check:
+	@echo "$(BLUE)Environment Configuration:$(NC)"
+	@echo "  NATS_URL: $(NATS_URL)"
+	@echo "  NATS_PORT: $(NATS_PORT)"
+	@echo "  CERTS_DIR: $(CERTS_DIR)"
+	@if [ -f "$(CERTS_DIR)/rootCA.pem" ]; then \
+		echo "  $(GREEN)✓$(NC) Certificates found"; \
+	else \
+		echo "  $(RED)✗$(NC) Certificates not found"; \
+	fi
+
+# Default target
+.DEFAULT_GOAL := help
