@@ -15,3 +15,4 @@
 	url = https://github.com/alvarogarcia7/notes-exporter.git
 [submodule "parsers/hn"]
 	url = https://github.com/alvarogarcia7/link-collection-rust.git
+	path = parsers/hn
