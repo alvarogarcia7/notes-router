@@ -10,3 +10,9 @@
 [submodule "parsers/next"]
 	path = parsers/next
 	url = https://github.com/alvarogarcia7/notes-parser-next-entry.git
+[submodule "importers/google-keep"]
+	path = importers/google-keep
+	url = https://github.com/alvarogarcia7/keep-it-markdown.git
+[submodule "importers/apple-notes"]
+	path = importers/apple-notes
+	url = https://github.com/alvarogarcia7/notes-exporter.git
