@@ -1,9 +1,6 @@
 [submodule "parsers/training"]
 	path = parsers/training
 	url = https://github.com/alvarogarcia7/training-parser-antlr4.git
-[submodule "parsers/hn"]
-	path = parsers/hn
-	url = https://github.com/alvarogarcia7/google-keep-notes-parser.git
 [submodule "parsers/time"]
 	path = parsers/time
 	url = https://github.com/alvarogarcia7/notes-parser-time-entry.git
@@ -16,3 +13,5 @@
 [submodule "importers/apple-notes"]
 	path = importers/apple-notes
 	url = https://github.com/alvarogarcia7/notes-exporter.git
+[submodule "parsers/hn"]
+	url = https://github.com/alvarogarcia7/link-collection-rust.git
