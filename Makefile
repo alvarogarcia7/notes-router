@@ -1,42 +1,47 @@
-.PHONY: sync test install clean help nats-up nats-down nats-status gen-certs
-
+.PHONY: sync
+## Install dependencies using uv
 sync:
 	uv sync
 
+.PHONY: test
+## Run pytest tests
 test: sync
 	uv run pytest tests/ -v
 
+.PHONY: install
+## Install dependencies
 install: sync
 
+.PHONY: clean
+## Clean up cache and build artifacts
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
 	rm -rf build/ dist/ *.egg-info/
 
-# Infrastructure targets (delegate to infra/nats)
+.PHONY: nats-up
+## Start NATS server
 nats-up:
 	@$(MAKE) -C infra/nats up
 
+.PHONY: nats-down
+## Stop NATS server
 nats-down:
 	@$(MAKE) -C infra/nats down
 
+.PHONY: nats-status
+## Show NATS server status
 nats-status:
 	@$(MAKE) -C infra/nats status
 
+.PHONY: gen-certs
+## Generate TLS certificates for NATS
 gen-certs:
 	@$(MAKE) -C infra/nats gen-certs
 
+.PHONY: help
+## Show this help message
 help:
-	@echo "Available targets:"
-	@echo ""
-	@echo "Development:"
-	@echo "  sync    - Install dependencies using uv"
-	@echo "  test    - Run pytest tests"
-	@echo "  install - Install dependencies"
-	@echo "  clean   - Clean up cache and build artifacts"
-	@echo ""
-	@echo "Infrastructure (NATS):"
-	@echo "  nats-up    - Start NATS server"
-	@echo "  nats-down  - Stop NATS server"
-	@echo "  nats-status - Show NATS server status"
-	@echo "  gen-certs  - Generate TLS certificates for NATS"
+	@awk '/^\.PHONY:/ { target=$$(NF) } /^## / { gsub(/^## /, ""); print "  " target ": " $$0 }' $(MAKEFILE_LIST) | sort
+
+.DEFAULT_GOAL := help
