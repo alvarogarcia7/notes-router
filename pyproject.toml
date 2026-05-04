@@ -1,0 +1,8 @@
+[project]
+name = "notes-router"
+version = "0.1.0"
+description = "Central routing and orchestration for the NATS-based notes processing pipeline"
+requires-python = ">=3.9"
+dependencies = [
+    "nats-py>=0.26.0",
+]
