@@ -37,7 +37,7 @@ graph TD
     subgraph Stage3["🔧 Parsers"]
         P1["⏱️ Time<br/>notes-parser-time-entry"]
         P2["📰 HackerNews<br/>google-keep-notes-parser"]
-        P3["🎓 Training<br/>training-parser-antlr4"]
+        P3["💪 Training<br/>training-parser-antlr4"]
         P4["➡️ Next<br/>notes-parser-next-entry"]
     end
 
@@ -98,11 +98,11 @@ graph TD
 
 | Stage | Component | Purpose |
 |-------|-----------|---------|
-| **1** | Publishers | Extract notes from Google Keep and Apple Notes |
+| **1** | Publishers | Extract notes from Google Keep, Apple Notes, or any other source |
 | **2** | NATS Topics | Distribute raw notes to router |
 | **3** | Router | Detect message type and route to appropriate topic |
-| **4** | NATS Topics | Topic-specific message queues |
-| **5** | Parsers | Parse and process content for specific types |
+| **4** | NATS Topics | Topic-specific message queues (time, HN, training, next, or any other type) |
+| **5** | Parsers | Parse and process content for specific types (or custom types) |
 | **6** | NATS Topics | Store parsed results |
 | **7** | Writers | Write parsed data to `/tmp/nats/$TOPIC/` |
 | **8** | Files | JSON files organized by topic and ID |
